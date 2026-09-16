@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/components/auth/stores/auth.store';
 import { useWorkspaceStore } from '@/components/auth/stores/useWorkspace.store';
+import { useColumnsStore } from '@/components/auth/stores/useColumns.store';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,26 +11,20 @@ import ManageTaskModal from '@/components/ManageTaskModal';
 import { toast } from '@/hooks/use-toast';
 import { useTasksStore } from '@/components/auth/stores/useTasksStore';
 
-interface Column {
-  id: string;
-  title: string;
-  color: string;
-}
-
 const Kanban = () => {
   const { selectedWorkspace } = useWorkspaceStore();
   const { user } = useAuthStore();
+  const { columns, fetchColumns, updateColumn } = useColumnsStore();
 
   // ✅ Use task store instead of local state
   const { tasks, addTask, updateTask, deleteTask } = useTasksStore();
 
-  const [columns, setColumns] = useState<Column[]>([
-    { id: 'todo', title: 'To Do', color: 'bg-gray-100' },
-    { id: 'inprogress', title: 'In Progress', color: 'bg-blue-100' },
-    { id: 'qa', title: 'QA', color: 'bg-yellow-100' },
-    { id: 'blocked', title: 'Blocked', color: 'bg-red-100' },
-    { id: 'done', title: 'Done', color: 'bg-green-100' },
-  ]);
+  useEffect(() => {
+    if (selectedWorkspace) {
+      fetchColumns(selectedWorkspace.id);
+    }
+  }, [selectedWorkspace, fetchColumns]);
+
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isManageTaskModalOpen, setIsManageTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
@@ -63,7 +58,7 @@ const Kanban = () => {
         id: Date.now(),
         title: taskData.title || '',
         description: taskData.description || '',
-        status: taskData.status || 'todo',
+        status: taskData.status || columns[0]?.id || '',
         assignee: taskData.assignee || '',
         dueDate: taskData.dueDate || '',
         priority: taskData.priority || 'medium',
@@ -129,15 +124,21 @@ const Kanban = () => {
     }
   };
 
-  const handleColumnSave = (columnId: string) => {
+  const handleColumnSave = async (columnId: string) => {
     if (columnTitle.trim()) {
-      setColumns((prev) =>
-        prev.map((col) => (col.id === columnId ? { ...col, title: columnTitle } : col))
-      );
-      toast({
-        title: 'Column Updated',
-        description: 'Column title has been updated.',
-      });
+      try {
+        await updateColumn(columnId, { name: columnTitle.trim() });
+        toast({
+          title: 'Column Updated',
+          description: 'Column title has been updated.',
+        });
+      } catch (err) {
+        toast({
+          title: 'Error',
+          description: 'Failed to update column.',
+          variant: 'destructive',
+        });
+      }
     }
     setEditingColumn(null);
     setColumnTitle('');
@@ -188,11 +189,17 @@ const Kanban = () => {
         </div>
       </div>
 
-      <div className="flex items-center gap-6 mb-8 overflow-x-auto justify-between">
+      {columns.length === 0 && (
+        <div className="text-center text-gray-500 mb-8">
+          No columns yet — click "Manage Columns" to add your first one.
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-start gap-6 mb-8">
         {columns.map((column) => (
           <div
             key={column.id}
-            className="space-y-4 shrink-0 w-72"
+            className="space-y-4 w-72"
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, column.id)}
           >
@@ -305,13 +312,13 @@ const Kanban = () => {
         onClose={() => setIsTaskModalOpen(false)}
         onSave={handleSaveTask}
         task={editingTask}
+        columns={columns}
       />
 
       <ManageTaskModal
         isOpen={isManageTaskModalOpen}
         onClose={() => setIsManageTaskModalOpen(false)}
-        columns={columns}
-        onSaveColumns={setColumns}
+        workspaceId={selectedWorkspace.id}
       />
     </div>
   );

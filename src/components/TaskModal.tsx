@@ -11,6 +11,7 @@ import { Plus, Trash2, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import Comments from '@/pages/Comments';
 import { Task, Subtask } from '@/types/types';
+import { Column } from '@/components/auth/stores/useColumns.store';
 
 export interface TaskModalProps {
   isOpen: boolean;
@@ -18,9 +19,10 @@ export interface TaskModalProps {
   onSave: (task: Partial<Task>) => void;
   task?: Task | null;
   prefillDate?: string;
+  columns?: Column[];
 }
 
-export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, task }) => {
+export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, task, columns = [] }) => {
   const [formData, setFormData] = useState<{
     title: string;
     description: string;
@@ -48,7 +50,6 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, t
 
   const teamMembers = ['John Doe', 'Jane Smith', 'Mike Johnson', 'Sarah Wilson', 'Tom Brown'];
   const colorOptions = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280'];
-  const statusOptions = ['todo', 'inprogress', 'qa', 'blocked', 'done', 'review', 'testing'];
 
   useEffect(() => {
     if (task) {
@@ -67,7 +68,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, t
       setFormData({
         title: '',
         description: '',
-        status: 'todo',
+        status: columns[0]?.id || '',
         assignee: '',
         dueDate: '',
         priority: 'medium',
@@ -76,7 +77,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, t
         subtasks: [],
       });
     }
-  }, [task, isOpen]);
+  }, [task, isOpen, columns]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -200,9 +201,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, t
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {statusOptions.map(status => (
-                    <SelectItem key={status} value={status}>
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                  {columns.map(column => (
+                    <SelectItem key={column.id} value={column.id}>
+                      {column.title}
                     </SelectItem>
                   ))}
                 </SelectContent>

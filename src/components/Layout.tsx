@@ -27,11 +27,15 @@ const Layout = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const { workspaceId } = useParams();
-  const { workspaces, selectWorkspace } = useWorkspaceStore();
+  const { workspaces, selectWorkspace, fetchWorkspaces } = useWorkspaceStore();
+
+  useEffect(() => {
+    fetchWorkspaces();
+  }, [fetchWorkspaces]);
 
   useEffect(() => {
     if (workspaceId) {
-      const workspace = workspaces.find(w => w.id === parseInt(workspaceId));
+      const workspace = workspaces.find(w => w.id === workspaceId);
       if (workspace) {
         selectWorkspace(workspace);
       }

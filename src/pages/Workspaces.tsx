@@ -3,8 +3,7 @@ import { useWorkspaceStore } from '@/components/auth/stores/useWorkspace.store';
 import { useUIStore } from '@/components/auth/stores/useUIStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Folder, Users, Calendar, MoreHorizontal, Edit, Trash } from 'lucide-react';
+import { Folder, Users, MoreHorizontal, Edit, Trash } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import WorkspaceModal from '@/components/WorkspaceModal';
 import { toast } from '@/hooks/use-toast';
@@ -26,21 +25,29 @@ const Workspaces = () => {
   const { openModal } = useUIStore();
   const navigate = useNavigate();
 
-  const handleWorkspaceSave = (workspaceData: any) => {
-    if (editingItem) {
-      updateWorkspace(editingItem.id, workspaceData);
+  const handleWorkspaceSave = async (workspaceData: any) => {
+    try {
+      if (editingItem) {
+        await updateWorkspace(editingItem.id, workspaceData);
+        toast({
+          title: "Workspace Updated",
+          description: "Workspace has been updated successfully",
+        });
+      } else {
+        await addWorkspace(workspaceData);
+        toast({
+          title: "Workspace Created",
+          description: "New workspace has been created successfully",
+        });
+      }
+      setEditingItem(null);
+    } catch (err) {
       toast({
-        title: "Workspace Updated",
-        description: "Workspace has been updated successfully",
-      });
-    } else {
-      addWorkspace(workspaceData);
-      toast({
-        title: "Workspace Created",
-        description: "New workspace has been created successfully",
+        title: "Error",
+        description: editingItem ? "Failed to update workspace" : "Failed to create workspace",
+        variant: "destructive",
       });
     }
-    setEditingItem(null);
   };
 
   const handleEdit = (workspace: Workspace) => {
@@ -48,21 +55,25 @@ const Workspaces = () => {
     openModal('workspace');
   };
 
-  const handleDelete = (workspaceId: number) => {
-    deleteWorkspace(workspaceId);
-    toast({
-      title: "Workspace Deleted",
-      description: "Workspace has been deleted successfully",
-    });
+  const handleDelete = async (workspaceId: string) => {
+    try {
+      await deleteWorkspace(workspaceId);
+      toast({
+        title: "Workspace Deleted",
+        description: "Workspace has been deleted successfully",
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to delete workspace",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCreateWorkspace = () => {
     setEditingItem(null); // Clear editing item
     openModal('workspace');
-  };
-
-  const getProgressPercentage = (completed: number, total: number) => {
-    return total > 0 ? (completed / total) * 100 : 0;
   };
 
   return (
@@ -79,19 +90,13 @@ const Workspaces = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {workspaces.map((workspace) => {
-          const totalTasks = 24; // Mock data
-          const completedTasks = Math.floor(Math.random() * totalTasks);
-          const progressPercentage = getProgressPercentage(completedTasks, totalTasks);
-
-  
-          
           return (
             <Card 
               key={workspace.id} 
               className="cursor-pointer hover:shadow-lg transition-all"
               onClick={() => {
                 selectWorkspace(workspace);
-                navigate('/app/kanban/${workspace.id}');
+                navigate(`/app/kanban/${workspace.id}`);
               }}
             >
               <CardHeader className="pb-3">
@@ -133,10 +138,6 @@ const Workspaces = () => {
                     <div className="flex items-center text-gray-500">
                       <Users className="w-4 h-4 mr-1" />
                       {workspace.members.length} members
-                    </div>
-                    <div className="flex items-center text-gray-500">
-                      <Calendar className="w-4 h-4 mr-1" />
-                      {completedTasks}/{totalTasks} tasks
                     </div>
                   </div>
                 </div>

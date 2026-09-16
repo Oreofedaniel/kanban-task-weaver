@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import axios, { AxiosError } from 'axios';
-
-const API_URL = import.meta.env.VITE_API_URL;
+import { getApiUrl } from '@/lib/api';
 
 export interface User {
   id: string;
@@ -36,7 +35,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email: string, password: string) => {
     set({ loading: true, error: null });
     try {
-      const { data } = await axios.post<AuthResponse>(`${API_URL}/auth/login`, { email, password });
+      const { data } = await axios.post<AuthResponse>(getApiUrl('/auth/login'), { email, password });
 
       localStorage.setItem('token', data.access_token);
       localStorage.setItem('user', JSON.stringify(data.user));
@@ -55,7 +54,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   register: async (name: string, email: string, password: string) => {
     set({ loading: true, error: null });
     try {
-      const { data } = await axios.post<AuthResponse>(`${API_URL}/auth/register`, {
+      const { data } = await axios.post<AuthResponse>(getApiUrl('/auth/register'), {
         name,
         email,
         password,
