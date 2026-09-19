@@ -1,137 +1,73 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import axios, { AxiosError } from 'axios';
-import { useAuthStore } from '../stores/auth.store';
-import { User } from '../stores/auth.store.ts';
+import { useSearchParams, Link } from 'react-router-dom';
+import { api } from '@/lib/api';
+import AuthShell from '../components/AuthShell';
 
-interface Status {
-  loading: boolean;
-  message: string;
-  error: string;
-}
-
-interface VerifyResponse {
-  message: string;
-  access_token: string;
-  user?: User; 
-}
+type State =
+  | { kind: 'loading' }
+  | { kind: 'success'; message: string }
+  | { kind: 'error'; message: string };
 
 export default function VerifyPage() {
   const [searchParams] = useSearchParams();
-  const [status, setStatus] = useState<Status>({
-    loading: true,
-    message: 'Verifying your email...',
-    error: ''
-  });
-  const navigate = useNavigate();
-  const { setUser } = useAuthStore();
+  const [state, setState] = useState<State>({ kind: 'loading' });
 
   useEffect(() => {
     const token = searchParams.get('token');
-    const email = searchParams.get('email');
-
     if (!token) {
-      setStatus({
-        loading: false,
-        message: '',
-        error: 'Invalid verification link'
-      });
+      setState({ kind: 'error', message: 'This verification link is invalid.' });
       return;
     }
 
-    const verifyEmail = async () => {
-      try {
-        const { data } = await axios.get<VerifyResponse>(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/auth/verify?token=${token}`
-        );
-
-      fetch('http://localhost:4000/api/auth/verify-email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ token }),
-    })
-
-        if (email && data.user) {
-          setUser(data.user);
-          localStorage.setItem('token', data.access_token);
-        }
-
-        setStatus({
-          loading: false,
-          message: data.message || 'Email verified successfully!',
-          error: ''
+    let cancelled = false;
+    api
+      .post<{ message: string }>('/auth/verify-email', { token })
+      .then(({ data }) => !cancelled && setState({ kind: 'success', message: data.message }))
+      .catch((err) => {
+        if (cancelled) return;
+        const detail: string = err?.response?.data?.message || '';
+        setState({
+          kind: 'error',
+          message: /invalid|expired/i.test(detail)
+            ? 'This verification link is invalid or has expired.'
+            : detail || 'Verification failed. Please try again.',
         });
+      });
 
-        setTimeout(() => navigate('/dashboard'), 4000);
-      } catch (err) {
-        const axiosError = err as AxiosError<{ message?: string }>;
-        const errorMessage =
-          axiosError.response?.data?.message || axiosError.message;
-
-        setStatus({
-          loading: false,
-          message: '',
-          error: errorMessage.includes('expired')
-            ? 'Verification link expired. Please request a new one.'
-            : errorMessage || 'Verification failed'
-        });
-      }
+    return () => {
+      cancelled = true;
     };
-
-    verifyEmail();
-  }, [navigate, searchParams, setUser]);
+  }, [searchParams]);
 
   return (
-    <div className="w-full max-w-md p-8 space-y-4 rounded-lg bg-white shadow text-center">
-      {status.loading ? (
-        <div className="flex flex-col items-center">
-          <svg
-            className="animate-spin h-8 w-8 text-blue-500 mb-4"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            ></circle>
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            ></path>
-          </svg>
-          <p>Verifying...</p>
-        </div>
-      ) : status.error ? (
-        <div className="space-y-2">
-          <p className="text-red-500 font-medium">{status.error}</p>
+    <AuthShell title="Email Verification">
+      {state.kind === 'loading' && <p className="text-center text-gray-600">Verifying your email...</p>}
 
-          {status.error.includes('expired') && (
-            <button
-              onClick={() => navigate('/resend-verification')}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Resend Verification Email
-            </button>
-          )}
-          <button
-            onClick={() => navigate('/register')}
-            className="text-blue-600 hover:underline"
-          >
-            Try registering again
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <p className="text-green-600 font-medium">{status.message}</p>
-          <p className="text-gray-500 text-sm">Redirecting to dashboard...</p>
+      {state.kind === 'success' && (
+        <div className="space-y-4 text-center">
+          <p className="text-green-600 font-medium">{state.message}</p>
+          <Link to="/auth" className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            Continue to login
+          </Link>
         </div>
       )}
-    </div>
+
+      {state.kind === 'error' && (
+        <div className="space-y-4 text-center">
+          <p className="text-red-500 font-medium">{state.message}</p>
+          <Link
+            to="/resend-verification"
+            className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Send me a new link
+          </Link>
+          <div>
+            <Link to="/auth" className="text-blue-600 hover:underline text-sm">
+              Back to login
+            </Link>
+          </div>
+        </div>
+      )}
+    </AuthShell>
   );
 }

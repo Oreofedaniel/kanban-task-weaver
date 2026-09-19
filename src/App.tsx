@@ -14,7 +14,9 @@ import ProtectedRoute from "@/components/auth/components/ProtectedRoute";
 import Layout from "./components/Layout";
 import AuthPage from '@/components/auth/pages/AuthPage';
 import VerifyPage from '@/components/auth/pages/VerifyPage';
-import ResendVerificationPage from '@/components/auth/pages/ResendVerificationPage'; 
+import ResendVerificationPage from '@/components/auth/pages/ResendVerificationPage';
+import ForgotPasswordPage from '@/components/auth/pages/ForgotPasswordPage';
+import ResetPasswordPage from '@/components/auth/pages/ResetPasswordPage';
 import Teamlist from "./components/Teamlist";
 import TeamsPage from "./pages/team/Index";
 import AllTasks from './pages/AllTasks';
@@ -37,6 +39,8 @@ const App = () => (
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/verify" element={<VerifyPage />} />
           <Route path="/resend-verification" element={<ResendVerificationPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/users-test" element= {<Users />} />
           
           {/* Redirect root to auth page */}
