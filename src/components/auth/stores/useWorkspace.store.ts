@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { api } from '@/lib/api';
 
 export interface Workspace {
@@ -38,7 +39,10 @@ interface WorkspaceState {
   setEditingItem: (item: Workspace | null) => void;
 }
 
-export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
+// Only the selected workspace is remembered across reloads; the list always comes from the API.
+export const useWorkspaceStore = create<WorkspaceState>()(
+  persist(
+    (set) => ({
   workspaces: [],
   selectedWorkspace: null,
   editingItem: null,
@@ -53,7 +57,7 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
         workspaces,
         loading: false,
         selectedWorkspace: state.selectedWorkspace
-          ? workspaces.find((w) => w.id === state.selectedWorkspace!.id) || state.selectedWorkspace
+          ? workspaces.find((w) => w.id === state.selectedWorkspace!.id) || null
           : null,
       }));
     } catch (err) {
@@ -97,4 +101,10 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => ({
   },
 
   setEditingItem: (item) => set({ editingItem: item }),
-}));
+    }),
+    {
+      name: 'workspace-selected-v2',
+      partialize: (state) => ({ selectedWorkspace: state.selectedWorkspace }),
+    }
+  )
+);

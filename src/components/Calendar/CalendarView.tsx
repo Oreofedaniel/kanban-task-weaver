@@ -10,7 +10,7 @@ interface CalendarViewProps {
   tasks: Task[];
   onDateClick: (date: string) => void;
   onTaskClick: (task: Task) => void;
-  onTaskDrop: (taskId: number, newDate: string) => void;
+  onTaskDrop: (taskId: string, newDate: string) => void;
   onDateChange: (date: Date) => void;
 }
 
@@ -65,7 +65,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const handleDrop = (e: React.DragEvent, date: string) => {
     e.preventDefault();
-    const taskId = parseInt(e.dataTransfer.getData('taskId'));
+    const taskId = e.dataTransfer.getData('taskId');
     onTaskDrop(taskId, date);
   };
 

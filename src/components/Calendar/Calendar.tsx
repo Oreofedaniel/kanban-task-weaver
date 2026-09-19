@@ -1,13 +1,16 @@
 // src/components/Calendar/Calendar.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useWorkspaceStore } from '@/components/auth/stores/useWorkspace.store';
 import { useCalendarStore, Task } from '@/components/auth/stores/useCalendarStore';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useTasksStore } from '@/components/auth/stores/useTasksStore';
+import { useColumnsStore } from '@/components/auth/stores/useColumns.store';
+import { useAuthStore } from '@/components/auth/stores/auth.store';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { TaskModal } from '@/components/TaskModal';
 import { toast } from '@/hooks/use-toast';
 import { CalendarView } from './CalendarView';
@@ -18,102 +21,88 @@ import { DueTodayTasks } from './DueTodayTasks';
 
 const Calendar = () => {
   const { selectedWorkspace } = useWorkspaceStore();
-  const {
-    tasks,
-    currentView,
-    currentDate,
-    filters,
-    setTasks,
-    setView,
-    setCurrentDate,
-    setFilter,
-    getFilteredTasks,
-    subscribeToUpdates,
-    unsubscribeFromUpdates
-  } = useCalendarStore();
+  const { user } = useAuthStore();
+  const { currentView, currentDate, filters, setView, setCurrentDate, setFilter } = useCalendarStore();
+  const { tasks, fetchTasks, addTask, updateTask } = useTasksStore();
+  const { columns, fetchColumns } = useColumnsStore();
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [prefillDate, setPrefillDate] = useState<string | undefined>(undefined);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
 
   useEffect(() => {
-    if (!selectedWorkspace) return;
-
-    // Load initial tasks
-    const today = new Date();
-    const nextWeek = new Date(today);
-    nextWeek.setDate(today.getDate() + 7);
-    const nextMonth = new Date(today);
-    nextMonth.setMonth(today.getMonth() + 1);
-
-    const initialTasks: Task[] = [
-      { 
-        id: 1, 
-        title: 'User Authentication', 
-        description: 'Implement user login and registration',
-        dueDate: today.toISOString().split('T')[0], 
-        priority: 'high', 
-        status: 'inprogress',
-        assignee: 'John Doe',
-        tags: ['backend', 'security'],
-        color: '#ef4444',
-        subtasks: [],
-        createdBy: 'John Doe',
-        workspaceId: selectedWorkspace.id
-      },
-      // ... other initial tasks
-    ];
-
-    setTasks(initialTasks);
-    subscribeToUpdates(selectedWorkspace.id);
-
-    return () => unsubscribeFromUpdates();
-  }, [selectedWorkspace, setTasks, subscribeToUpdates, unsubscribeFromUpdates]);
-
-  const handleTaskSave = (taskData: Partial<Task>) => {
-    if (!selectedWorkspace) return;
-
-    if (selectedTask && selectedTask.id) {
-      useCalendarStore.getState().updateTask(selectedTask.id, taskData);
-      toast({
-        title: "Task Updated",
-        description: "Task has been successfully updated",
-      });
-    } else {
-      const newTask: Task = {
-        id: Date.now(),
-        title: taskData.title || '',
-        description: taskData.description || '',
-        dueDate: taskData.dueDate || new Date().toISOString().split('T')[0],
-        priority: taskData.priority || 'medium',
-        status: taskData.status || 'todo',
-        assignee: taskData.assignee || '',
-        tags: taskData.tags || [],
-        color: taskData.color || '#6b7280',
-        subtasks: taskData.subtasks || [],
-        createdBy: 'Current User', // Replace with actual user
-        workspaceId: selectedWorkspace.id
-      };
-      useCalendarStore.getState().addTask(newTask);
-      toast({
-        title: "Task Created",
-        description: "New task has been created successfully",
-      });
+    if (selectedWorkspace) {
+      fetchColumns(selectedWorkspace.id);
+      fetchTasks(selectedWorkspace.id);
     }
-    setSelectedTask(null);
+  }, [selectedWorkspace, fetchColumns, fetchTasks]);
+
+  // Only tasks that have a due date can be placed on a calendar.
+  const scheduled = useMemo(() => tasks.filter((t) => !!t.dueDate), [tasks]);
+
+  const assignees = useMemo(
+    () => Array.from(new Set(tasks.map((t) => t.assignee).filter(Boolean))).sort(),
+    [tasks]
+  );
+
+  const filteredTasks = useMemo(() => {
+    const q = filters.search.toLowerCase();
+    return scheduled.filter((t) => {
+      const matchesSearch =
+        q === '' || t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q);
+      const matchesStatus = filters.status === 'all' || t.status === filters.status;
+      const matchesAssignee = filters.assignee === 'all' || t.assignee === filters.assignee;
+      return matchesSearch && matchesStatus && matchesAssignee;
+    });
+  }, [scheduled, filters]);
+
+  if (!selectedWorkspace) {
+    return (
+      <div className="p-8">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">No Workspace Selected</h1>
+          <p className="text-gray-600">Open a workspace from the Workspaces page to see its calendar.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const closeModal = () => {
     setIsTaskModalOpen(false);
+    setSelectedTask(null);
+    setPrefillDate(undefined);
   };
 
-  const handleCreateTask = (prefilledDate?: string) => {
-    if (!selectedWorkspace) return;
+  const handleTaskSave = async (taskData: Partial<Task>) => {
+    try {
+      if (selectedTask) {
+        await updateTask(selectedTask.id, taskData);
+        toast({ title: 'Task Updated', description: 'Task has been successfully updated' });
+      } else {
+        await addTask({
+          title: taskData.title || '',
+          description: taskData.description || '',
+          status: taskData.status || columns[0]?.id || '',
+          assignee: taskData.assignee || '',
+          dueDate: taskData.dueDate || prefillDate || '',
+          priority: taskData.priority || 'medium',
+          tags: taskData.tags || [],
+          color: taskData.color || '#6b7280',
+          subtasks: taskData.subtasks || [],
+          createdBy: user?.name || 'Unknown',
+          workspaceId: selectedWorkspace.id,
+        });
+        toast({ title: 'Task Created', description: 'New task has been created successfully' });
+      }
+      closeModal();
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to save task.', variant: 'destructive' });
+    }
+  };
 
-    const newTask: Partial<Task> = {
-      dueDate: prefilledDate || new Date().toISOString().split('T')[0],
-      status: 'todo',
-      priority: 'medium',
-      workspaceId: selectedWorkspace.id
-    };
-
-    setSelectedTask(newTask as Task);
+  const handleCreateTask = (date?: string) => {
+    setSelectedTask(null);
+    setPrefillDate(date);
     setIsTaskModalOpen(true);
   };
 
@@ -122,21 +111,22 @@ const Calendar = () => {
     setIsTaskModalOpen(true);
   };
 
-  const handleTaskDrop = (taskId: number, newDate: string) => {
-    useCalendarStore.getState().moveTask(taskId, newDate);
-    toast({
-      title: "Task Rescheduled",
-      description: "Task due date has been updated",
-    });
+  const handleTaskDrop = async (taskId: string, newDate: string) => {
+    try {
+      await updateTask(taskId, { dueDate: newDate });
+      toast({ title: 'Task Rescheduled', description: 'Task due date has been updated' });
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to reschedule task.', variant: 'destructive' });
+    }
   };
-
-  const filteredTasks = getFilteredTasks();
 
   return (
     <div className="p-8 m-auto">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Calendar</h1>
-        <p className="text-gray-600">Manage your tasks and schedule</p>
+        <p className="text-gray-600">
+          Tasks from <span className="font-medium">{selectedWorkspace.name}</span> by due date — drag a task to a new day to reschedule it
+        </p>
       </div>
 
       <Tabs defaultValue="calendar" className="mb-6">
@@ -159,18 +149,18 @@ const Calendar = () => {
                     className="w-64"
                   />
                 </div>
-                
+
                 <Select value={filters.status} onValueChange={(v) => setFilter('status', v)}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue placeholder="Status" />
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Column" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="todo">To Do</SelectItem>
-                    <SelectItem value="inprogress">In Progress</SelectItem>
-                    <SelectItem value="qa">QA</SelectItem>
-                    <SelectItem value="blocked">Blocked</SelectItem>
-                    <SelectItem value="done">Done</SelectItem>
+                    <SelectItem value="all">All Columns</SelectItem>
+                    {columns.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.title}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
 
@@ -179,15 +169,16 @@ const Calendar = () => {
                     <SelectValue placeholder="Assignee" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">all assignee</SelectItem>
-                    <SelectItem value="John Doe">John Doe</SelectItem>
-                    <SelectItem value="Jane Smith">Jane Smith</SelectItem>
-                    <SelectItem value="Mike Johnson">Mike Johnson</SelectItem>
-                    <SelectItem value="Sarah Wilson">Sarah Wilson</SelectItem>
+                    <SelectItem value="all">All Assignees</SelectItem>
+                    {assignees.map((a) => (
+                      <SelectItem key={a} value={a}>
+                        {a}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
 
-                <Select value={currentView} onValueChange={(v: any) => setView(v)}>
+                <Select value={currentView} onValueChange={(v: 'month' | 'week' | 'day') => setView(v)}>
                   <SelectTrigger className="w-32">
                     <SelectValue placeholder="View" />
                   </SelectTrigger>
@@ -249,12 +240,11 @@ const Calendar = () => {
 
       <TaskModal
         isOpen={isTaskModalOpen}
-        onClose={() => {
-          setIsTaskModalOpen(false);
-          setSelectedTask(null);
-        }}
+        onClose={closeModal}
         onSave={handleTaskSave}
         task={selectedTask}
+        columns={columns}
+        prefillDate={prefillDate}
       />
     </div>
   );

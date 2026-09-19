@@ -22,7 +22,7 @@ export interface TaskModalProps {
   columns?: Column[];
 }
 
-export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, task, columns = [] }) => {
+export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, task, columns = [], prefillDate }) => {
   const [formData, setFormData] = useState<{
     title: string;
     description: string;
@@ -70,14 +70,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, t
         description: '',
         status: columns[0]?.id || '',
         assignee: '',
-        dueDate: '',
+        dueDate: prefillDate || '',
         priority: 'medium',
         tags: [],
         color: '#6b7280',
         subtasks: [],
       });
     }
-  }, [task, isOpen, columns]);
+  }, [task, isOpen, columns, prefillDate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

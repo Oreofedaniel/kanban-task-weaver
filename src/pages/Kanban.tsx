@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAuthStore } from '@/components/auth/stores/auth.store';
 import { useWorkspaceStore } from '@/components/auth/stores/useWorkspace.store';
 import { useColumnsStore } from '@/components/auth/stores/useColumns.store';
@@ -12,7 +13,16 @@ import { toast } from '@/hooks/use-toast';
 import { useTasksStore } from '@/components/auth/stores/useTasksStore';
 
 const Kanban = () => {
-  const { selectedWorkspace } = useWorkspaceStore();
+  const { workspaceId } = useParams();
+  const { selectedWorkspace, workspaces, selectWorkspace } = useWorkspaceStore();
+
+  // The URL is the source of truth for which workspace this board shows.
+  useEffect(() => {
+    if (workspaceId && selectedWorkspace?.id !== workspaceId) {
+      const match = workspaces.find((w) => w.id === workspaceId);
+      if (match) selectWorkspace(match);
+    }
+  }, [workspaceId, workspaces, selectedWorkspace, selectWorkspace]);
   const { user } = useAuthStore();
   const { columns, fetchColumns, updateColumn } = useColumnsStore();
 
