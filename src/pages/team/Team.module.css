@@ -132,3 +132,41 @@
 .cancelBtn {
   color: red;
 }
+
+.addRow {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.addMemberRow {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+}
+
+.addMemberRow .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.primaryBtn {
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.primaryBtn:hover {
+  background: #1d4ed8;
+}
+
+.empty {
+  color: #6b7280;
+  font-style: italic;
+  padding: 0.5rem 0;
+}
