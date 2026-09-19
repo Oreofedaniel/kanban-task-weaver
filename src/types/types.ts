@@ -8,7 +8,7 @@ export interface Comment {
 }
 
 export interface Subtask {
-  id: number;
+  id: string;
   title: string;
   description: string;
   status: string;
@@ -20,7 +20,7 @@ export interface Subtask {
 }
 
 export interface Task {
-  id: number;
+  id: string;
   title: string;
   description: string;
   status: string;
@@ -31,7 +31,7 @@ export interface Task {
   color: string;
   subtasks: Subtask[];
   createdBy: string;
-  workspaceId: number;
+  workspaceId: string;
   comments?: Comment[];
 }
 

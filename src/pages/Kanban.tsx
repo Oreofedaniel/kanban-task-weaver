@@ -17,13 +17,14 @@ const Kanban = () => {
   const { columns, fetchColumns, updateColumn } = useColumnsStore();
 
   // ✅ Use task store instead of local state
-  const { tasks, addTask, updateTask, deleteTask } = useTasksStore();
+  const { tasks, addTask, updateTask, deleteTask, fetchTasks } = useTasksStore();
 
   useEffect(() => {
     if (selectedWorkspace) {
       fetchColumns(selectedWorkspace.id);
+      fetchTasks(selectedWorkspace.id);
     }
-  }, [selectedWorkspace, fetchColumns]);
+  }, [selectedWorkspace, fetchColumns, fetchTasks]);
 
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isManageTaskModalOpen, setIsManageTaskModalOpen] = useState(false);
@@ -46,38 +47,44 @@ const Kanban = () => {
     setIsTaskModalOpen(true);
   };
 
-  const handleSaveTask = (taskData: any) => {
-    if (editingTask) {
-      updateTask(editingTask.id, taskData);
+  const handleSaveTask = async (taskData: any) => {
+    try {
+      if (editingTask) {
+        await updateTask(editingTask.id, taskData);
+        toast({
+          title: 'Task Updated',
+          description: 'Task has been successfully updated.',
+        });
+      } else {
+        await addTask({
+          title: taskData.title || '',
+          description: taskData.description || '',
+          status: taskData.status || columns[0]?.id || '',
+          assignee: taskData.assignee || '',
+          dueDate: taskData.dueDate || '',
+          priority: taskData.priority || 'medium',
+          tags: taskData.tags || [],
+          color: taskData.color || '#6b7280',
+          subtasks: taskData.subtasks || [],
+          createdBy: user?.name || 'Unknown',
+          workspaceId: selectedWorkspace?.id || '',
+        });
+        toast({
+          title: 'Task Created',
+          description: 'New task has been successfully created.',
+        });
+      }
+      setIsTaskModalOpen(false);
+    } catch (err) {
       toast({
-        title: 'Task Updated',
-        description: 'Task has been successfully updated.',
-      });
-    } else {
-      const newTask = {
-        id: Date.now(),
-        title: taskData.title || '',
-        description: taskData.description || '',
-        status: taskData.status || columns[0]?.id || '',
-        assignee: taskData.assignee || '',
-        dueDate: taskData.dueDate || '',
-        priority: taskData.priority || 'medium',
-        tags: taskData.tags || [],
-        color: taskData.color || '#6b7280',
-        subtasks: taskData.subtasks || [],
-        createdBy: user?.name || 'Unknown',
-        workspaceId: selectedWorkspace?.id || 0,
-      };
-      addTask(newTask);
-      toast({
-        title: 'Task Created',
-        description: 'New task has been successfully created.',
+        title: 'Error',
+        description: editingTask ? 'Failed to update task.' : 'Failed to create task.',
+        variant: 'destructive',
       });
     }
-    setIsTaskModalOpen(false);
   };
 
-  const handleDeleteTask = (taskId: number, e: React.MouseEvent) => {
+  const handleDeleteTask = async (taskId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!canEditTasks) {
       toast({
@@ -87,11 +94,19 @@ const Kanban = () => {
       });
       return;
     }
-    deleteTask(taskId);
-    toast({
-      title: 'Task Deleted',
-      description: 'Task has been successfully deleted.',
-    });
+    try {
+      await deleteTask(taskId);
+      toast({
+        title: 'Task Deleted',
+        description: 'Task has been successfully deleted.',
+      });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete task.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleDragStart = (e: React.DragEvent, task: any) => {
@@ -104,14 +119,22 @@ const Kanban = () => {
     e.dataTransfer.dropEffect = 'move';
   };
 
-  const handleDrop = (e: React.DragEvent, newStatus: string) => {
+  const handleDrop = async (e: React.DragEvent, newStatus: string) => {
     e.preventDefault();
     if (draggedTask && draggedTask.status !== newStatus) {
-      updateTask(draggedTask.id, { status: newStatus });
-      toast({
-        title: 'Task Moved',
-        description: `Task moved to ${columns.find((col) => col.id === newStatus)?.title}`,
-      });
+      try {
+        await updateTask(draggedTask.id, { status: newStatus });
+        toast({
+          title: 'Task Moved',
+          description: `Task moved to ${columns.find((col) => col.id === newStatus)?.title}`,
+        });
+      } catch (err) {
+        toast({
+          title: 'Error',
+          description: 'Failed to move task.',
+          variant: 'destructive',
+        });
+      }
     }
     setDraggedTask(null);
   };

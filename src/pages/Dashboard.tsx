@@ -168,28 +168,28 @@ const Dashboard = () => {
       onClick: () => navigate('/app/workspaces'),
       description: 'Manage all workspaces'
     },
-    { 
-      name: 'Completed Tasks', 
-      value: metrics.completedTasks.toString(), 
-      icon: BarChart3, 
+    {
+      name: 'Completed Tasks',
+      value: metrics.completedTasks.toString(),
+      icon: BarChart3,
       color: 'bg-green-500',
       onClick: () => navigate('/app/tasks?status=completed'),
       description: 'View completed tasks'
     },
-    { 
-      name: 'In Progress', 
-      value: metrics.inProgressTasks.toString(), 
-      icon: Clock, 
+    {
+      name: 'In Progress',
+      value: metrics.inProgressTasks.toString(),
+      icon: Clock,
       color: 'bg-yellow-500',
       onClick: () => navigate('/app/tasks?status=in-progress'),
       description: 'View tasks in progress'
     },
-    { 
-      name: 'Team Members', 
-      value: metrics.teamMembers.toString(), 
-      icon: Users, 
+    {
+      name: 'Team Members',
+      value: metrics.teamMembers.toString(),
+      icon: Users,
       color: 'bg-indigo-500',
-      onClick: () => navigate('/app/users'),
+      onClick: () => navigate('/app/Teamlist'),
       description: 'Manage team members'
     },
   ];
@@ -243,9 +243,9 @@ const Dashboard = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
         {stats.map((stat) => (
-          <Card 
-            key={stat.name} 
-            className="transition-all duration-200 cursor-pointer hover:shadow-md hover:scale-105"
+          <Card
+            key={stat.name}
+            className={`transition-all duration-200 ${stat.onClick ? 'cursor-pointer hover:shadow-md hover:scale-105' : ''}`}
             onClick={stat.onClick}
           >
             <CardContent className="p-6">

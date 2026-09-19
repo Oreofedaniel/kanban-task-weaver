@@ -20,6 +20,7 @@ import Teamlist from "./components/Teamlist";
 import TeamsPage from "./pages/team/Index";
 import CommitmentsDashboard from './pages/CommitmentsDashboard';
 import CommitmentsHistory from './pages/CommitmentsHistory';
+import AllTasks from './pages/AllTasks';
 import Users from "./Users";
 
 
@@ -61,6 +62,7 @@ const App = () => (
             <Route path="commitments" element={<Commitments />} />
             <Route path="CommitmentsDashboard" element={<CommitmentsDashboard />} />
             <Route path="Commimentshistory" element={<CommitmentsHistory />} />
+            <Route path="tasks" element={<AllTasks />} />
           </Route>
 
           {/* Catch all route */}

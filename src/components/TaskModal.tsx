@@ -99,7 +99,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, t
   const handleAddSubtask = () => {
     if (newSubtask.trim()) {
       const subtask: Subtask = {
-        id: Date.now(),
+        id: Date.now().toString(),
         title: newSubtask,
         description: '',
         status: 'todo',
@@ -115,11 +115,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, t
     }
   };
 
-  const handleDeleteSubtask = (subtaskId: number) => {
+  const handleDeleteSubtask = (subtaskId: string) => {
     setFormData({ ...formData, subtasks: formData.subtasks.filter(st => st.id !== subtaskId) });
   };
 
-  const handleUpdateSubtask = (subtaskId: number, updates: Partial<Subtask>) => {
+  const handleUpdateSubtask = (subtaskId: string, updates: Partial<Subtask>) => {
     setFormData({
       ...formData,
       subtasks: formData.subtasks.map(st => (st.id === subtaskId ? { ...st, ...updates } : st)),
