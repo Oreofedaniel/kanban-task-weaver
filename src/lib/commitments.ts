@@ -1,50 +1,67 @@
-import { Commitment } from '../types/commitment';
+import { api } from './api';
+import { Commitment, Priority, Status, Tab } from '../types/commitment';
 
-
-const API_BASE = import.meta.env.VITE_API_BASE || '';
-const withBase = (p: string) => `${API_BASE}${p}`;
-
-
-function qs(params: Record<string, any> = {}) {
-const entries = Object.entries(params).filter(([, v]) => v !== undefined && v !== '' && v !== null);
-return entries.length ? `?${new URLSearchParams(entries as any).toString()}` : '';
+interface RawCommitment {
+  _id: string;
+  title: string;
+  description?: string | null;
+  dueDate?: string | null;
+  assigneeId?: string | { _id: string; name?: string } | null;
+  priority: Priority;
+  status: Status;
+  archived?: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
+const normalize = (c: RawCommitment): Commitment => {
+  const a = c.assigneeId;
+  return {
+    id: c._id,
+    title: c.title,
+    description: c.description || '',
+    dueDate: c.dueDate || c.createdAt,
+    assignee: a && typeof a === 'object' ? { id: a._id, name: a.name || 'Unknown' } : null,
+    priority: c.priority,
+    status: c.status,
+    archived: !!c.archived,
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+  };
+};
 
-async function json<T>(res: Response): Promise<T> { if (!res.ok) throw new Error(await res.text()); return res.json(); }
-
-
-export async function fetchCommitments(params: Record<string, any> = {}): Promise<Commitment[]> {
-return json(await fetch(withBase(`/commitments${qs(params)}`), { credentials: 'include' }));
+export interface CommitmentInput {
+  title: string;
+  description?: string;
+  dueDate: string; // ISO
+  assigneeId?: string | null;
+  priority: Priority;
+  status?: Status;
 }
 
-
-export async function createCommitment(payload: Partial<Commitment>): Promise<Commitment> {
-return json(
-await fetch(withBase('/commitments'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), credentials: 'include' })
-);
+export async function fetchCommitments(tab: Tab = 'All'): Promise<Commitment[]> {
+  const { data } = await api.get<RawCommitment[]>('/commitments', { params: { tab } });
+  return data.map(normalize);
 }
 
-
-export async function updateCommitment(id: string, payload: Partial<Commitment>): Promise<Commitment> {
-return json(
-await fetch(withBase(`/commitments/${id}`), { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), credentials: 'include' })
-);
+export async function createCommitment(payload: CommitmentInput): Promise<void> {
+  await api.post('/commitments', payload);
 }
 
-
-export async function completeCommitment(id: string): Promise<Commitment> {
-return json(await fetch(withBase(`/commitments/${id}/complete`), { method: 'PATCH', credentials: 'include' }));
+export async function updateCommitment(id: string, payload: Partial<CommitmentInput>): Promise<void> {
+  await api.patch(`/commitments/${id}`, payload);
 }
 
-
-export async function deleteCommitment(id: string): Promise<void> {
-const res = await fetch(withBase(`/commitments/${id}`), { method: 'DELETE', credentials: 'include' });
-if (!res.ok) throw new Error(await res.text());
+export async function archiveCommitment(id: string): Promise<void> {
+  await api.patch(`/commitments/${id}/archive`);
 }
 
-export async function downloadReport(params: Record<string, any> = {}) {
-  const res = await fetch(`${API_BASE}/commitments/report${qs(params)}`, { credentials: 'include' });
-  if (!res.ok) throw new Error(await res.text());
-  return res.blob();
+export async function restoreCommitment(id: string): Promise<void> {
+  await api.patch(`/commitments/${id}/restore`);
+}
+
+export function errorMessage(err: any, fallback: string): string {
+  const m = err?.response?.data?.message;
+  if (Array.isArray(m)) return m.join(', ');
+  return m || fallback;
 }

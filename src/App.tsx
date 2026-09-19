@@ -7,7 +7,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Workspaces from "./pages/Workspaces";
 import Calendar from "./components/Calendar/Calendar";
-import Comments from "./pages/Comments";
 import Commitments from "./pages/Commitments";
 import Notifications from "./pages/Notifications";
 import Kanban from "./pages/Kanban";
@@ -18,8 +17,6 @@ import VerifyPage from '@/components/auth/pages/VerifyPage';
 import ResendVerificationPage from '@/components/auth/pages/ResendVerificationPage'; 
 import Teamlist from "./components/Teamlist";
 import TeamsPage from "./pages/team/Index";
-import CommitmentsDashboard from './pages/CommitmentsDashboard';
-import CommitmentsHistory from './pages/CommitmentsHistory';
 import AllTasks from './pages/AllTasks';
 import Users from "./Users";
 
@@ -55,13 +52,9 @@ const App = () => (
             <Route path="workspaces" element={<Workspaces />} />
             <Route path="kanban/:workspaceId" element={<Kanban />} />
             <Route path="calendar" element={<Calendar />} />
-            <Route path="comments" element={<Comments />} />
             <Route path="commitments" element={<Commitments />} />
             <Route path="notifications" element={<Notifications />} />
             <Route path="Teamlist" element={<TeamsPage/>} />
-            <Route path="commitments" element={<Commitments />} />
-            <Route path="CommitmentsDashboard" element={<CommitmentsDashboard />} />
-            <Route path="Commimentshistory" element={<CommitmentsHistory />} />
             <Route path="tasks" element={<AllTasks />} />
           </Route>
 

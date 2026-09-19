@@ -313,7 +313,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ isOpen, onClose, onSave, t
           {/* Comments */}
           <div className="border-t pt-4">
             <h3 className="font-medium text-gray-900 mb-4">Comments</h3>
-            <Comments />
+            <Comments taskId={task?.id} />
           </div>
 
           {/* Actions */}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,157 +7,213 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { GitCommit, Calendar as CalendarIcon, User, Clock, Edit, Trash, Plus, Save, X } from 'lucide-react';
+import {
+  GitCommit,
+  Calendar as CalendarIcon,
+  User,
+  Clock,
+  Edit,
+  Archive,
+  ArchiveRestore,
+  Plus,
+  Save,
+  X,
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
-import { useCommitmentStore } from '@/components/auth/stores/commitment.store';
+import { Commitment, Priority, Status, Tab } from '@/types/commitment';
+import {
+  fetchCommitments,
+  createCommitment,
+  updateCommitment,
+  archiveCommitment,
+  restoreCommitment,
+  errorMessage,
+} from '@/lib/commitments';
+import { fetchUsers, AppUser } from '@/lib/users';
 
-interface Commitment {
-  id: number;
+const TABS: Tab[] = ['All', 'Upcoming', 'Due Today', 'Completed', 'Archived'];
+const UNASSIGNED = 'unassigned';
+
+interface EditState {
+  id: string;
   title: string;
   description: string;
-  assignee: string;
-  dueDate: string;
-  priority: 'low' | 'medium' | 'high';
-  status: 'pending' | 'in-progress' | 'completed' | 'archived';
-  createdBy: string;
-  createdAt: string;
+  assigneeId: string;
+  priority: Priority;
+  dueDate: string; // yyyy-MM-dd
 }
 
-type FilterType = 'all' | 'upcoming' | 'dueToday' | 'completed' | 'archived';
+const emptyForm = () => ({
+  title: '',
+  description: '',
+  assigneeId: UNASSIGNED,
+  dueDate: new Date(),
+  priority: 'Medium' as Priority,
+});
 
 const Commitments = () => {
-  const [commitments, setCommitments] = useState<Commitment[]>([
-    {
-      id: 1,
-      title: 'Complete user authentication testing',
-      description: 'Ensure all authentication flows are properly tested before release',
-      assignee: 'John Doe',
-      dueDate: '2024-01-20',
-      priority: 'high',
-      status: 'in-progress',
-      createdBy: 'Sarah Connor',
-      createdAt: '2024-01-10'
-    },
-    {
-      id: 2,
-      title: 'Review API documentation',
-      description: 'Update and review all API documentation for accuracy',
-      assignee: 'Jane Smith',
-      dueDate: '2024-01-25',
-      priority: 'medium',
-      status: 'pending',
-      createdBy: 'Mike Johnson',
-      createdAt: '2024-01-12'
-    },
-    {
-      id: 3,
-      title: 'Database backup implementation',
-      description: 'Implement automated daily backup system for production database',
-      assignee: 'Mike Johnson',
-      dueDate: '2024-01-18',
-      priority: 'high',
-      status: 'completed',
-      createdBy: 'Sarah Connor',
-      createdAt: '2024-01-08'
-    }
-    // You may add commitments with status: 'archived' if needed
-  ]);
-
-  const [filter, setFilter] = useState<FilterType>('all');
+  const [commitments, setCommitments] = useState<Commitment[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [tab, setTab] = useState<Tab>('All');
+  const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  const [editing, setEditing] = useState<Commitment | null>(null);
+  const [editing, setEditing] = useState<EditState | null>(null);
+  const [newCommitment, setNewCommitment] = useState(emptyForm());
 
-  const [newCommitment, setNewCommitment] = useState({
-    title: '',
-    description: '',
-    assignee: '',
-    dueDate: new Date(),
-    priority: 'medium' as 'low' | 'medium' | 'high'
-  });
+  const load = useCallback(async () => {
+    try {
+      setCommitments(await fetchCommitments(tab));
+    } catch (err) {
+      toast({ title: 'Error', description: errorMessage(err, 'Failed to load commitments'), variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, [tab]);
 
-  const handleCreateCommitment = () => {
-    if (newCommitment.title.trim() && newCommitment.assignee.trim()) {
-      const commitment: Commitment = {
-        id: Date.now(),
-        title: newCommitment.title,
-        description: newCommitment.description,
-        assignee: newCommitment.assignee,
-        dueDate: format(newCommitment.dueDate, 'yyyy-MM-dd'),
-        priority: newCommitment.priority,
-        status: 'pending',
-        createdBy: 'Current User',
-        createdAt: format(new Date(), 'yyyy-MM-dd')
-      };
-      setCommitments([commitment, ...commitments]);
-      setNewCommitment({
-        title: '',
-        description: '',
-        assignee: '',
-        dueDate: new Date(),
-        priority: 'medium'
-      });
-      setIsCreating(false);
-      toast({ title: "Commitment Created", description: "New commitment has been created successfully" });
+  useEffect(() => {
+    setLoading(true);
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    fetchUsers().then(setUsers).catch(() => setUsers([]));
+  }, []);
+
+  const run = async (action: () => Promise<void>, success: { title: string; description: string }) => {
+    try {
+      await action();
+      toast(success);
+      await load();
+    } catch (err) {
+      toast({ title: 'Error', description: errorMessage(err, 'Something went wrong'), variant: 'destructive' });
     }
   };
 
-  const handleStatusChange = (id: number, newStatus: 'pending' | 'in-progress' | 'completed') => {
-    setCommitments(commitments.map(commitment =>
-      commitment.id === id ? { ...commitment, status: newStatus } : commitment
-    ));
-    toast({ title: "Status Updated", description: "Commitment status has been updated" });
-  };
-
-  const handleDeleteCommitment = (id: number) => {
-    setCommitments(commitments.map(commitment =>
-       commitment.id === id ? { ...commitment, status: 'archived' } : commitment
-  ));
-    toast({ title: "Commitment Archieved", description: "Commitment has been moved to archived" });
-  };
-
-  const handleSaveEdit = () => {
-    if (editing) {
-      setCommitments(commitments.map(c => c.id === editing.id ? editing : c));
-      setEditing(null);
-      toast({ title: "Commitment Updated", description: "Commitment has been updated successfully",
-      className: "bg-white text-black",});
+  const handleCreate = async () => {
+    if (!newCommitment.title.trim()) {
+      toast({ title: 'Missing title', description: 'Please enter a title', variant: 'destructive' });
+      return;
     }
+    await run(
+      async () => {
+        await createCommitment({
+          title: newCommitment.title.trim(),
+          description: newCommitment.description,
+          dueDate: newCommitment.dueDate.toISOString(),
+          assigneeId: newCommitment.assigneeId === UNASSIGNED ? null : newCommitment.assigneeId,
+          priority: newCommitment.priority,
+          status: 'Not Started',
+        });
+        setNewCommitment(emptyForm());
+        setIsCreating(false);
+      },
+      { title: 'Commitment Created', description: 'New commitment has been created successfully' }
+    );
+  };
+
+  const handleStatusChange = (id: string, status: Status) =>
+    run(() => updateCommitment(id, { status }), {
+      title: 'Status Updated',
+      description: 'Commitment status has been updated',
+    });
+
+  const handleArchive = (id: string) =>
+    run(() => archiveCommitment(id), {
+      title: 'Commitment Archived',
+      description: 'Moved to the Archived tab. You can restore it any time.',
+    });
+
+  const handleRestore = (id: string) =>
+    run(() => restoreCommitment(id), {
+      title: 'Commitment Restored',
+      description: 'Commitment has been restored successfully',
+    });
+
+  const startEdit = (c: Commitment) =>
+    setEditing({
+      id: c.id,
+      title: c.title,
+      description: c.description,
+      assigneeId: c.assignee?.id || UNASSIGNED,
+      priority: c.priority,
+      dueDate: format(new Date(c.dueDate), 'yyyy-MM-dd'),
+    });
+
+  const handleSaveEdit = async () => {
+    if (!editing || !editing.title.trim()) return;
+    await run(
+      async () => {
+        await updateCommitment(editing.id, {
+          title: editing.title.trim(),
+          description: editing.description,
+          assigneeId: editing.assigneeId === UNASSIGNED ? null : editing.assigneeId,
+          priority: editing.priority,
+          dueDate: new Date(`${editing.dueDate}T00:00:00`).toISOString(),
+        });
+        setEditing(null);
+      },
+      { title: 'Commitment Updated', description: 'Commitment has been updated successfully' }
+    );
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'High':
+        return 'bg-red-100 text-red-800';
+      case 'Medium':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'Low':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'in-progress': return 'bg-blue-100 text-blue-800';
-      case 'pending': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'Completed':
+        return 'bg-green-100 text-green-800';
+      case 'In Progress':
+        return 'bg-blue-100 text-blue-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const filteredCommitments = commitments.filter(commitment => {
-    switch (filter) {
-      case 'upcoming':
-        return commitment.dueDate > today;
-      case 'dueToday':
-        return commitment.dueDate === today;
-      case 'completed':
-        return commitment.status === 'completed';
-      case 'archived':
-        return commitment.status === 'archived';
-      default:
-        return true;
-    }
-  });
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const isOverdue = (c: Commitment) =>
+    c.status !== 'Completed' && !c.archived && new Date(c.dueDate) < startOfToday;
+
+  const assigneeSelect = (value: string, onChange: (v: string) => void) => (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger>
+        <SelectValue placeholder="Assignee" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+        {users.map((u) => (
+          <SelectItem key={u.id} value={u.id}>
+            {u.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  const prioritySelect = (value: Priority, onChange: (v: Priority) => void) => (
+    <Select value={value} onValueChange={(v: Priority) => onChange(v)}>
+      <SelectTrigger>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="Low">Low Priority</SelectItem>
+        <SelectItem value="Medium">Medium Priority</SelectItem>
+        <SelectItem value="High">High Priority</SelectItem>
+      </SelectContent>
+    </Select>
+  );
 
   return (
     <div className="p-8">
@@ -172,24 +228,14 @@ const Commitments = () => {
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex space-x-4 mb-6">
-        {(['all', 'upcoming', 'dueToday', 'completed', 'archived'] as FilterType[]).map((tab) => (
-          <Button
-            key={tab}
-            variant={filter === tab ? "default" : "outline"}
-            onClick={() => setFilter(tab)}
-          >
-            {tab === 'all' && 'All'}
-            {tab === 'upcoming' && 'Upcoming'}
-            {tab === 'dueToday' && 'Due Today'}
-            {tab === 'completed' && 'Completed'}
-            {tab === 'archived' && 'Archived'}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {TABS.map((t) => (
+          <Button key={t} variant={tab === t ? 'default' : 'outline'} onClick={() => setTab(t)}>
+            {t}
           </Button>
         ))}
       </div>
 
-      {/* Create new commitment form */}
       {isCreating && (
         <Card className="mb-8">
           <CardHeader>
@@ -198,13 +244,19 @@ const Commitments = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <Input placeholder="Commitment title..." value={newCommitment.title}
-                onChange={(e) => setNewCommitment({ ...newCommitment, title: e.target.value })} />
-              <Textarea placeholder="Description..." value={newCommitment.description}
-                onChange={(e) => setNewCommitment({ ...newCommitment, description: e.target.value })} rows={3} />
+              <Input
+                placeholder="Commitment title..."
+                value={newCommitment.title}
+                onChange={(e) => setNewCommitment({ ...newCommitment, title: e.target.value })}
+              />
+              <Textarea
+                placeholder="Description..."
+                value={newCommitment.description}
+                onChange={(e) => setNewCommitment({ ...newCommitment, description: e.target.value })}
+                rows={3}
+              />
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input placeholder="Assignee..." value={newCommitment.assignee}
-                  onChange={(e) => setNewCommitment({ ...newCommitment, assignee: e.target.value })} />
+                {assigneeSelect(newCommitment.assigneeId, (v) => setNewCommitment({ ...newCommitment, assigneeId: v }))}
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="justify-start">
@@ -213,96 +265,125 @@ const Commitments = () => {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={newCommitment.dueDate}
+                    <Calendar
+                      mode="single"
+                      selected={newCommitment.dueDate}
                       onSelect={(date) => date && setNewCommitment({ ...newCommitment, dueDate: date })}
-                      initialFocus />
+                      initialFocus
+                    />
                   </PopoverContent>
                 </Popover>
-                <Select value={newCommitment.priority}
-                  onValueChange={(value: 'low' | 'medium' | 'high') => setNewCommitment({ ...newCommitment, priority: value })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low Priority</SelectItem>
-                    <SelectItem value="medium">Medium Priority</SelectItem>
-                    <SelectItem value="high">High Priority</SelectItem>
-                  </SelectContent>
-                </Select>
+                {prioritySelect(newCommitment.priority, (v) => setNewCommitment({ ...newCommitment, priority: v }))}
               </div>
               <div className="flex space-x-2">
-                <Button onClick={handleCreateCommitment}>Create Commitment</Button>
-                <Button variant="outline" onClick={() => setIsCreating(false)}>Cancel</Button>
+                <Button onClick={handleCreate}>Create Commitment</Button>
+                <Button variant="outline" onClick={() => setIsCreating(false)}>
+                  Cancel
+                </Button>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* List of commitments */}
       <div className="space-y-4">
-        {filteredCommitments.map((commitment) => (
-          <Card key={commitment.id}>
-            <CardContent className="p-6">
-              {editing?.id === commitment.id ? (
-                <div className="space-y-4">
-                  <Input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
-                  <Textarea value={editing.description} onChange={(e) => setEditing({ ...editing, description: e.target.value })} />
-                  <Input value={editing.assignee} onChange={(e) => setEditing({ ...editing, assignee: e.target.value })} />
-                  <div className="flex space-x-2">
-                    <Button onClick={handleSaveEdit}><Save className="w-4 h-4 mr-2" /> Save</Button>
-                    <Button variant="outline" onClick={() => setEditing(null)}><X className="w-4 h-4 mr-2" /> Cancel</Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <GitCommit className="w-5 h-5 text-blue-600" />
-                      <h3 className="font-semibold text-gray-900">{commitment.title}</h3>
-                      <Badge className={getPriorityColor(commitment.priority)}>{commitment.priority}</Badge>
-                      <Badge className={getStatusColor(commitment.status)}>{commitment.status}</Badge>
+        {loading ? (
+          <p className="text-gray-500">Loading commitments...</p>
+        ) : commitments.length === 0 ? (
+          <p className="text-gray-500">No commitments in "{tab}".</p>
+        ) : (
+          commitments.map((commitment) => (
+            <Card key={commitment.id}>
+              <CardContent className="p-6">
+                {editing?.id === commitment.id ? (
+                  <div className="space-y-4">
+                    <Input value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
+                    <Textarea
+                      value={editing.description}
+                      onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {assigneeSelect(editing.assigneeId, (v) => setEditing({ ...editing, assigneeId: v }))}
+                      <Input
+                        type="date"
+                        value={editing.dueDate}
+                        onChange={(e) => setEditing({ ...editing, dueDate: e.target.value })}
+                      />
+                      {prioritySelect(editing.priority, (v) => setEditing({ ...editing, priority: v }))}
                     </div>
-                    <p className="text-gray-600 mb-3">{commitment.description}</p>
-                    <div className="flex items-center space-x-4 text-sm text-gray-500">
-                      <div className="flex items-center space-x-1"><User className="w-4 h-4" /><span>Assigned to: {commitment.assignee}</span></div>
-                      <div className="flex items-center space-x-1"><CalendarIcon className="w-4 h-4" /><span>Due: {commitment.dueDate}</span></div>
-                      <div className="flex items-center space-x-1"><Clock className="w-4 h-4" /><span>Created: {commitment.createdAt}</span></div>
+                    <div className="flex space-x-2">
+                      <Button onClick={handleSaveEdit}>
+                        <Save className="w-4 h-4 mr-2" /> Save
+                      </Button>
+                      <Button variant="outline" onClick={() => setEditing(null)}>
+                        <X className="w-4 h-4 mr-2" /> Cancel
+                      </Button>
                     </div>
-                    <p className="text-xs text-gray-400 mt-2">Created by: {commitment.createdBy}</p>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Select value={commitment.status}
-                      onValueChange={(value: 'pending' | 'in-progress' | 'completed') => handleStatusChange(commitment.id, value)}>
-                      <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="in-progress">In Progress</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    {commitment.status === 'archived' && (
-  <Button
-    size="sm"
-    variant="outline"
-    onClick={() => {
-      setCommitments(commitments.map(c =>  
-        c.id === commitment.id ? { ...c, status: 'pending' } : c
-      ));
-      toast({ title: "Commitment Restored", description: "Commitment has been restored successfully" });
-    }}
-  >
-    Restore
-  </Button>
-)}
-
-                    <Button size="sm" variant="ghost" onClick={() => setEditing(commitment)}><Edit className="w-4 h-4" /></Button>
-                    <Button size="sm" variant="ghost" onClick={() => handleDeleteCommitment(commitment.id)}><Trash className="w-4 h-4" /></Button>
+                ) : (
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <GitCommit className="w-5 h-5 text-blue-600" />
+                        <h3 className="font-semibold text-gray-900">{commitment.title}</h3>
+                        <Badge className={getPriorityColor(commitment.priority)}>{commitment.priority}</Badge>
+                        <Badge className={getStatusColor(commitment.status)}>{commitment.status}</Badge>
+                        {isOverdue(commitment) && <Badge className="bg-red-600 text-white">Overdue</Badge>}
+                        {commitment.archived && <Badge variant="outline">Archived</Badge>}
+                      </div>
+                      {commitment.description && <p className="text-gray-600 mb-3">{commitment.description}</p>}
+                      <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
+                        <div className="flex items-center space-x-1">
+                          <User className="w-4 h-4" />
+                          <span>Assigned to: {commitment.assignee?.name || 'Unassigned'}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <CalendarIcon className="w-4 h-4" />
+                          <span>Due: {format(new Date(commitment.dueDate), 'PPP')}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Clock className="w-4 h-4" />
+                          <span>Created: {format(new Date(commitment.createdAt), 'PPP')}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2 ml-4">
+                      {!commitment.archived && (
+                        <Select
+                          value={commitment.status}
+                          onValueChange={(v: Status) => handleStatusChange(commitment.id, v)}
+                        >
+                          <SelectTrigger className="w-36">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Not Started">Not Started</SelectItem>
+                            <SelectItem value="In Progress">In Progress</SelectItem>
+                            <SelectItem value="Completed">Completed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {commitment.archived ? (
+                        <Button size="sm" variant="outline" onClick={() => handleRestore(commitment.id)}>
+                          <ArchiveRestore className="w-4 h-4 mr-1" /> Restore
+                        </Button>
+                      ) : (
+                        <>
+                          <Button size="sm" variant="ghost" title="Edit" onClick={() => startEdit(commitment)}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleArchive(commitment.id)}>
+                            <Archive className="w-4 h-4 mr-1" /> Archive
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+                )}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
     </div>
   );
